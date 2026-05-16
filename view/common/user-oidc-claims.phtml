@@ -1,0 +1,21 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+$translate = $this->plugin('translate');
+
+$userId = $entity->id();
+$idp  = $this->userSetting('connection_idp', null, $userId);
+$last = $this->userSetting('connection_last', null, $userId);
+
+if (!$idp && !$last) {
+    return;
+}
+?>
+<div class="meta-group oidc-claims-summary">
+    <h4><?php echo $escape($translate('OIDC')); ?></h4>
+    <?php if ($idp): ?>
+        <div class="value"><strong><?php echo $escape($translate('IdP')); ?>:</strong> <?php echo $escape($idp); ?></div>
+    <?php endif; ?>
+    <?php if ($last): ?>
+        <div class="value"><strong><?php echo $escape($translate('Last login')); ?>:</strong> <?php echo $escape($last); ?></div>
+    <?php endif; ?>
+</div>

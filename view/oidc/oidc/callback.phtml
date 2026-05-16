@@ -1,0 +1,17 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+$target = isset($target) ? (string) $target : '/';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0;url=<?php echo $escape($target); ?>">
+    <title><?php echo $escape($this->translate('Completing sign-in...')); ?></title>
+</head>
+<body>
+    <p><?php echo $escape($this->translate('Completing sign-in. If you are not redirected, ')); ?>
+       <a href="<?php echo $escape($target); ?>"><?php echo $escape($this->translate('continue here.')); ?></a></p>
+    <script>window.location.replace(<?php echo json_encode($target); ?>);</script>
+</body>
+</html>

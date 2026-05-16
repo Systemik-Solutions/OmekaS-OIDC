@@ -1,0 +1,11 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+?>
+<div class="oidc-login-link" style="margin: 1.5em 0;">
+    <a href="<?php echo $escape($url); ?>" class="button"><?php echo $escape($label); ?></a>
+    <?php if (!empty($showLocalLink)): ?>
+        <a href="<?php echo $escape($this->url('login')); ?>" class="local-login-link" style="margin-left: 1em;">
+            <?php echo $escape($this->translate('Use local account')); ?>
+        </a>
+    <?php endif; ?>
+</div>

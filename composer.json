@@ -1,0 +1,23 @@
+{
+    "name": "omeka-s/oidc",
+    "description": "OpenID Connect Single Sign-On module for Omeka S.",
+    "type": "omeka-module",
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "php": ">=8.1",
+        "facile-it/php-openid-client": "^0.3 || ^1.0",
+        "psr/simple-cache": "^1.0 || ^2.0 || ^3.0",
+        "nyholm/psr7": "^1.8",
+        "spomky-labs/aes-key-wrap": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Oidc\\": "src/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}

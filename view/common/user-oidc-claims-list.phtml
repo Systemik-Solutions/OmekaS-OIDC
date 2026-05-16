@@ -1,0 +1,48 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+$translate = $this->plugin('translate');
+
+if (empty($userId)) {
+    return;
+}
+
+$display = $this->setting('oidc_claims_display', []);
+if (!is_array($display) || $display === []) {
+    return;
+}
+
+$rows = [];
+foreach ($display as $claim => $label) {
+    if ($label === '') {
+        continue;
+    }
+    $value = $this->userSetting($claim, null, $userId);
+    if ($value === null) {
+        continue;
+    }
+    $rows[] = [$label, $value];
+}
+
+if (!$rows) {
+    return;
+}
+?>
+<div class="oidc-claims-list">
+    <h3><?php echo $escape($translate('OIDC claims')); ?></h3>
+    <table class="tablesaw" data-tablesaw-mode="stack">
+        <thead>
+            <tr>
+                <th><?php echo $escape($translate('Claim')); ?></th>
+                <th><?php echo $escape($translate('Value')); ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($rows as [$label, $value]): ?>
+                <tr>
+                    <td><?php echo $escape($label); ?></td>
+                    <td><?php echo $escape(is_array($value) ? implode(', ', array_map('strval', $value)) : (string) $value); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
