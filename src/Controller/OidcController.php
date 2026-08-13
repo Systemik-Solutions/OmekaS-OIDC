@@ -17,6 +17,7 @@ use Laminas\Session\SessionManager;
 use Laminas\View\Model\ViewModel;
 use Oidc\Exception\NotConfiguredException;
 use Oidc\Settings as S;
+use Oidc\Stdlib\PublicUrl;
 use Oidc\Stdlib\RedirectUrl;
 use Omeka\Entity\User;
 use Omeka\Settings\Settings;
@@ -556,35 +557,40 @@ class OidcController extends AbstractActionController
 
     /**
      * Open-redirect guard. Accepts site-relative paths (/items) or absolute
-     * HTTP(S) URLs on this request's origin. Safe absolute URLs are rebuilt
-     * from validated components to avoid PHP/browser parser differences.
+     * HTTP(S) URLs on the configured public origin. Safe absolute URLs are
+     * rebuilt from validated components to avoid parser differences.
      */
     private function validateLocalUrl(string $url): ?string
     {
-        $request = $this->getRequest();
-        $uri = $request->getUri();
+        $baseUrl = $this->settings->get(S::BASE_URL);
+        $base = is_string($baseUrl) ? PublicUrl::components($baseUrl) : null;
+        if ($base === null) {
+            $this->logger->err('OIDC public base URL is missing or invalid; redirect rejected.');
+            return null;
+        }
         return RedirectUrl::normalizeForOrigin(
             $url,
-            $uri->getScheme(),
-            $uri->getHost(),
-            $uri->getPort(),
-            $request->getBaseUrl()
+            $base['scheme'],
+            $base['host'],
+            $base['port'],
+            $base['path']
         );
     }
 
     /**
-     * Build an absolute URL on this host for the given absolute path,
-     * preserving scheme, host, non-default port, and the application's
-     * base URL (needed for sub-directory installs).
+     * Build a URL from the administrator-pinned public base URL. A relative
+     * root fallback is safer than consulting an attacker-controlled Host
+     * header if settings are missing or corrupted.
      */
     private function absoluteUrl(string $path): string
     {
-        $request = $this->getRequest();
-        $uri = $request->getUri();
-        $port = $uri->getPort();
-        $authority = $uri->getHost() . (($port && !in_array($port, [80, 443], true)) ? ':' . $port : '');
-        $base = rtrim($request->getBaseUrl(), '/');
-        return $uri->getScheme() . '://' . $authority . $base . $path;
+        $baseUrl = $this->settings->get(S::BASE_URL);
+        $absolute = is_string($baseUrl) ? PublicUrl::appendPath($baseUrl, $path) : null;
+        if ($absolute === null) {
+            $this->logger->err('OIDC public base URL is missing or invalid; using a relative redirect.');
+            return '/';
+        }
+        return $absolute;
     }
 
     /**

@@ -36,6 +36,7 @@ final class InMemorySettings extends Settings
 function baseConfiguration(array $overrides = []): array
 {
     return array_merge([
+        S::BASE_URL => 'https://omeka.example.org/omeka',
         S::SCOPES => ['openid', 'org.cilogon.userinfo'],
         S::ROLE_CLAIM => 'isMemberOf',
     ], $overrides);
@@ -55,6 +56,29 @@ function expectInvalidConfiguration(callable $callback, string $description): vo
 
 $settings = new InMemorySettings([S::CLIENT_SECRET => 'test-secret']);
 $configurator = new Configurator($settings);
+
+expectInvalidConfiguration(
+    fn () => $configurator->applyValidated([
+        S::SCOPES => ['openid'],
+        S::ROLE_CLAIM => 'isMemberOf',
+    ]),
+    'missing public base URL'
+);
+
+expectInvalidConfiguration(
+    fn () => $configurator->applyValidated(baseConfiguration([
+        S::BASE_URL => 'https://user@omeka.example.org/omeka',
+    ])),
+    'public base URL containing user information'
+);
+
+$configurator->applyValidated(baseConfiguration([
+    S::BASE_URL => 'https://OMEKA.example.org:443/omeka/',
+]));
+if ($settings->get(S::BASE_URL) !== 'https://omeka.example.org/omeka') {
+    fwrite(STDERR, "Public base URL was not normalized before storage.\n");
+    exit(1);
+}
 
 expectInvalidConfiguration(
     fn () => $configurator->applyValidated(baseConfiguration([
@@ -91,6 +115,7 @@ expectInvalidConfiguration(
 function formData(?string $claim, ?string $value): array
 {
     return [
+        S::BASE_URL => 'https://omeka.example.org/omeka',
         S::IDP_DISCOVERY_URL => 'https://cilogon.org/.well-known/openid-configuration',
         S::CLIENT_ID => 'test-client',
         S::CLIENT_SECRET => '',

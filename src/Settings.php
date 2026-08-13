@@ -4,6 +4,7 @@ namespace Oidc;
 final class Settings
 {
     const IDP_DISCOVERY_URL   = 'oidc_idp_discovery_url';
+    const BASE_URL            = 'oidc_base_url';
     const CLIENT_ID           = 'oidc_client_id';
     const CLIENT_SECRET       = 'oidc_client_secret';
     const SCOPES              = 'oidc_scopes';
@@ -18,6 +19,7 @@ final class Settings
 
     const KEYS = [
         self::IDP_DISCOVERY_URL,
+        self::BASE_URL,
         self::CLIENT_ID,
         self::CLIENT_SECRET,
         self::SCOPES,
@@ -33,6 +35,7 @@ final class Settings
 
     const DEFAULTS = [
         self::IDP_DISCOVERY_URL  => 'https://cilogon.org/.well-known/openid-configuration', 
+        self::BASE_URL           => null,
         self::SCOPES             => ['openid', 'email', 'profile', 'org.cilogon.userinfo'],
         self::ROLE_CLAIM         => 'isMemberOf',
         self::ROLE_DEFAULT       => null, 

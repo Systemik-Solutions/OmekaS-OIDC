@@ -60,6 +60,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 
 | Field | Description |
 |---|---|
+| **Public base URL** | Canonical browser-facing URL of this Omeka installation, including any subdirectory and excluding a trailing slash, for example `https://omeka.example.org/omeka`. This trusted value is used for callback and redirect URLs instead of the incoming `Host` header. |
 | **IdP discovery URL** | The OIDC discovery document URL — usually `<issuer>/.well-known/openid-configuration`. The module fetches all endpoints from here. |
 | **Client ID** | Issued by the IdP when you register your client. |
 | **Client Secret** | Issued by the IdP. Treat as sensitive. Leave blank in the config form to keep the existing stored value. |
@@ -72,7 +73,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 | **Role claim** | Name of the claim carrying group memberships. CILogon: `isMemberOf`. Dex: `groups`. AAF: varies — check the actual claims (see "Debugging claims"). |
 | **Roles map** | Lines like `<group-substring> = <omeka-role>`. Substring is matched anywhere within a claim value, so `omeka-instance-a-editor` matches the COU path `CO:COU:omeka-instance-a-editor:members:active`. |
 | **Default role** | Fallback role when no roles_map entry matches. Leave blank to **deny** unmapped users. |
-| **Access-guard claim** / **Access-guard value** | **Optional gate** — restricts who can sign in. Both fields must be set together for the gate to activate; leave both blank to disable it. A partially configured pair is rejected. Set them only if you want to limit access to a specific institution, project group, or affiliation. 
+| **Access-guard claim** / **Access-guard value** | **Optional gate** — restricts who can sign in. Both fields must be set together for the gate to activate; leave both blank to disable it. A partially configured pair is rejected. Set them only if you want to limit access to a specific institution, project group, or affiliation. |
 
 **Allowed Omeka role IDs:** `global_admin`, `site_admin`, `editor`, `reviewer`, `author`, `researcher`. Note that `site_admin` is displayed as **"Supervisor"** in the Omeka UI but the internal ID is `site_admin`.
 
@@ -83,6 +84,8 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 | **Hide local login form** | Hides the username/password fields on the standard login page. The local form is still reachable as a super-admin fallback (the URL works, the fields are CSS-hidden). |
 | **Post-login redirect** | Where to send users after successful login. Use `home`, a site-relative path like `/items`, or an HTTP(S) URL on the same origin. |
 | **Claims to display** | Lines like `<claim-name> = <label>`. Stored on every login as user-settings. Empty label = stored but not shown in the user admin UI. |
+
+Existing installations must set **Public base URL** after upgrading. OIDC sign-in remains disabled until this trusted URL is configured.
 
 ---
  
@@ -119,6 +122,7 @@ omeka-instance-a-researcher
 
 | Field | Value |
 |---|---|
+| Public base URL | `https://your-domain/path-to-omeka` |
 | IdP discovery URL | `https://cilogon.org/.well-known/openid-configuration` |
 | Client ID | *(from CILogon approval email)* |
 | Client Secret | *(from CILogon approval email)* |
@@ -129,6 +133,8 @@ omeka-instance-a-researcher
 | Access-guard claim | `isMemberOf` |
 | Access-guard value | `omeka-instance-a` (or whatever prefix you chose) |
 | Hide local login | checked |
+
+When Omeka runs behind a TLS-terminating reverse proxy, set **Public base URL** to the external HTTPS URL seen by users and registered with the IdP, even if the proxy connects to Omeka over HTTP. The OIDC module does not derive its public scheme or host from `Host` or `X-Forwarded-*` request headers.
 
 
 

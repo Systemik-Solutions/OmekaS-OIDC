@@ -3,6 +3,7 @@ namespace Oidc\Service;
 
 use Oidc\Exception\InvalidConfigurationException;
 use Oidc\Settings as S;
+use Oidc\Stdlib\PublicUrl;
 use Oidc\Stdlib\RedirectUrl;
 use Omeka\Settings\Settings;
 
@@ -10,6 +11,7 @@ class Configurator
 {
     private const SHORT_KEY_MAP = [
         'idp_discovery_url'   => S::IDP_DISCOVERY_URL,
+        'base_url'            => S::BASE_URL,
         'client_id'           => S::CLIENT_ID,
         'client_secret'       => S::CLIENT_SECRET,
         'scopes'              => S::SCOPES,
@@ -53,6 +55,9 @@ class Configurator
     public function applyValidated(array $data): void
     {
         $this->validate($data);
+        if (isset($data[S::BASE_URL])) {
+            $data[S::BASE_URL] = PublicUrl::normalize($data[S::BASE_URL]);
+        }
         foreach ($data as $key => $value) {
             $this->settings->set($key, $value);
         }
@@ -60,6 +65,14 @@ class Configurator
 
     private function validate(array $data): void
     {
+        if (!array_key_exists(S::BASE_URL, $data)
+            || !is_string($data[S::BASE_URL])
+            || PublicUrl::normalize($data[S::BASE_URL]) === null
+        ) {
+            throw new InvalidConfigurationException(
+                'base_url must be an absolute HTTP(S) URL without user information, query, or fragment.'
+            );
+        }
         if (isset($data[S::IDP_DISCOVERY_URL])) {
             $url = $data[S::IDP_DISCOVERY_URL];
             if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) {

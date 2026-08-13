@@ -5,10 +5,10 @@ use Facile\OpenIDClient\Client\ClientBuilder;
 use Facile\OpenIDClient\Client\Metadata\ClientMetadata;
 use Facile\OpenIDClient\Issuer\IssuerBuilder;
 use Interop\Container\ContainerInterface;
-use Laminas\Http\Request as HttpRequest;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use Oidc\Exception\NotConfiguredException;
 use Oidc\Settings as S;
+use Oidc\Stdlib\PublicUrl;
 
 class OidcClientFactory implements FactoryInterface
 {
@@ -17,16 +17,21 @@ class OidcClientFactory implements FactoryInterface
         $settings = $container->get('Omeka\Settings');
 
         $discoveryUrl = $settings->get(S::IDP_DISCOVERY_URL, S::DEFAULTS[S::IDP_DISCOVERY_URL]);
+        $baseUrl      = $settings->get(S::BASE_URL);
         $clientId     = $settings->get(S::CLIENT_ID);
         $clientSecret = $settings->get(S::CLIENT_SECRET);
 
-        if (!$discoveryUrl || !$clientId || !$clientSecret) {
+        $baseUrl = is_string($baseUrl) ? PublicUrl::normalize($baseUrl) : null;
+        if (!$discoveryUrl || !$baseUrl || !$clientId || !$clientSecret) {
             throw new NotConfiguredException(
-                'OIDC module is not fully configured. Set discovery URL, client ID, and client secret.'
+                'OIDC module is not fully configured. Set public base URL, discovery URL, client ID, and client secret.'
             );
         }
 
-        $redirectUri = self::resolveRedirectUri($container);
+        $redirectUri = PublicUrl::appendPath($baseUrl, '/oidc/callback');
+        if ($redirectUri === null) {
+            throw new NotConfiguredException('OIDC public base URL is invalid.');
+        }
 
         $issuer = (new IssuerBuilder())->build($discoveryUrl);
 
@@ -42,18 +47,5 @@ class OidcClientFactory implements FactoryInterface
             ->setIssuer($issuer)
             ->setClientMetadata($metadata)
             ->build();
-    }
-
-    private static function resolveRedirectUri(ContainerInterface $container): string
-    {
-        $request = $container->get('Request');
-        if (!$request instanceof HttpRequest) {
-            throw new NotConfiguredException('OIDC client requires an HTTP request context.');
-        }
-        $uri = $request->getUri();
-        $port = $uri->getPort();
-        $authority = $uri->getHost() . (($port && !in_array($port, [80, 443], true)) ? ':' . $port : '');
-        $base = rtrim($request->getBaseUrl(), '/');
-        return sprintf('%s://%s%s/oidc/callback', $uri->getScheme(), $authority, $base);
     }
 }

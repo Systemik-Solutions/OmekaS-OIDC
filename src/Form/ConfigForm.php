@@ -22,6 +22,20 @@ class ConfigForm extends Form
     public function init(): void
     {
         $this->add([
+            'name' => S::BASE_URL,
+            'type' => Element\Url::class,
+            'options' => [
+                'label' => 'Public base URL', // @translate
+                'info'  => 'Canonical public URL of this Omeka installation, including any subdirectory. Used for OIDC callbacks and redirects; do not include a trailing slash.', // @translate
+            ],
+            'attributes' => [
+                'id' => 'oidc-base-url',
+                'required' => true,
+                'placeholder' => 'https://omeka.example.org/omeka',
+            ],
+        ]);
+
+        $this->add([
             'name' => S::IDP_DISCOVERY_URL,
             'type' => Element\Url::class,
             'options' => [
@@ -281,6 +295,9 @@ class ConfigForm extends Form
                 preg_split('/\s+/', trim($out[S::SCOPES])) ?: [],
                 fn ($s) => $s !== ''
             ));
+        }
+        if (isset($out[S::BASE_URL]) && is_string($out[S::BASE_URL])) {
+            $out[S::BASE_URL] = trim($out[S::BASE_URL]);
         }
         if (isset($out[S::ROLES_MAP]) && is_string($out[S::ROLES_MAP])) {
             $out[S::ROLES_MAP] = self::linesToArray($out[S::ROLES_MAP]);
