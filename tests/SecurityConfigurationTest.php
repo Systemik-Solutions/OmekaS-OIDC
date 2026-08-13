@@ -37,6 +37,7 @@ function baseConfiguration(array $overrides = []): array
 {
     return array_merge([
         S::BASE_URL => 'https://omeka.example.org/omeka',
+        S::CLIENT_ID => 'test-client',
         S::SCOPES => ['openid', 'org.cilogon.userinfo'],
         S::ROLE_CLAIM => 'isMemberOf',
     ], $overrides);
@@ -51,6 +52,33 @@ function expectInvalidConfiguration(callable $callback, string $description): vo
     }
 
     fwrite(STDERR, "Expected invalid configuration: {$description}\n");
+    exit(1);
+}
+
+// The programmatic API accepts partial payloads. Missing fields are validated
+// against stored values or module defaults, and only submitted keys are saved.
+$partialSettings = new InMemorySettings();
+$partialConfigurator = new Configurator($partialSettings);
+$partialConfigurator->apply([
+    'base_url' => 'https://omeka.example.org/omeka',
+    'client_id' => 'deployment-client',
+    'client_secret' => 'initial-secret',
+    'idp_discovery_url' => 'https://cilogon.org/.well-known/openid-configuration',
+    'roles_map' => ['omeka-instance-a-editors' => 'editor'],
+]);
+if ($partialSettings->get(S::SCOPES) !== null
+    || $partialSettings->get(S::ROLE_CLAIM) !== null
+    || $partialSettings->get(S::ROLES_MAP) !== ['omeka-instance-a-editors' => 'editor']
+) {
+    fwrite(STDERR, "Partial configuration wrote omitted defaults or lost submitted values.\n");
+    exit(1);
+}
+
+$partialConfigurator->apply(['client_secret' => 'rotated-secret']);
+if ($partialSettings->get(S::CLIENT_SECRET) !== 'rotated-secret'
+    || $partialSettings->get(S::CLIENT_ID) !== 'deployment-client'
+) {
+    fwrite(STDERR, "Partial secret rotation changed unrelated settings.\n");
     exit(1);
 }
 

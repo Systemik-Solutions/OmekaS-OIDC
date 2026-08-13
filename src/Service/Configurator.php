@@ -65,34 +65,29 @@ class Configurator
 
     private function validate(array $data): void
     {
-        if (!array_key_exists(S::BASE_URL, $data)
-            || !is_string($data[S::BASE_URL])
-            || PublicUrl::normalize($data[S::BASE_URL]) === null
-        ) {
+        $baseUrl = $this->effective($data, S::BASE_URL);
+        if (!is_string($baseUrl) || PublicUrl::normalize($baseUrl) === null) {
             throw new InvalidConfigurationException(
                 'base_url must be an absolute HTTP(S) URL without user information, query, or fragment.'
             );
         }
-        if (isset($data[S::IDP_DISCOVERY_URL])) {
-            $url = $data[S::IDP_DISCOVERY_URL];
-            if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
-                throw new InvalidConfigurationException('idp_discovery_url must be a valid URL.');
-            }
+
+        $discoveryUrl = $this->effective($data, S::IDP_DISCOVERY_URL);
+        if (!is_string($discoveryUrl) || !filter_var($discoveryUrl, FILTER_VALIDATE_URL)) {
+            throw new InvalidConfigurationException('idp_discovery_url must be a valid URL.');
         }
-        if (isset($data[S::CLIENT_ID]) && !is_string($data[S::CLIENT_ID])) {
-            throw new InvalidConfigurationException('client_id must be a string.');
+
+        $clientId = $this->effective($data, S::CLIENT_ID);
+        if (!is_string($clientId) || $clientId === '') {
+            throw new InvalidConfigurationException('client_id must be a non-empty string.');
         }
-        if (array_key_exists(S::CLIENT_SECRET, $data)) {
-            if (!is_string($data[S::CLIENT_SECRET]) || $data[S::CLIENT_SECRET] === '') {
-                throw new InvalidConfigurationException('client_secret must be a non-empty string.');
-            }
-        } elseif (!is_string($this->settings->get(S::CLIENT_SECRET)) || $this->settings->get(S::CLIENT_SECRET) === '') {
-            throw new InvalidConfigurationException('client_secret is required.');
+
+        $clientSecret = $this->effective($data, S::CLIENT_SECRET);
+        if (!is_string($clientSecret) || $clientSecret === '') {
+            throw new InvalidConfigurationException('client_secret must be a non-empty string.');
         }
-        if (!array_key_exists(S::SCOPES, $data)) {
-            throw new InvalidConfigurationException('scopes is required.');
-        }
-        $scopes = $data[S::SCOPES];
+
+        $scopes = $this->effective($data, S::SCOPES);
         if (!is_array($scopes) || $scopes === []) {
             throw new InvalidConfigurationException('scopes must be a non-empty array.');
         }
@@ -104,51 +99,42 @@ class Configurator
         if (!in_array('openid', $scopes, true)) {
             throw new InvalidConfigurationException('scopes must include "openid".');
         }
-        if (!array_key_exists(S::ROLE_CLAIM, $data)) {
-            throw new InvalidConfigurationException('role_claim is required.');
-        }
-        if (!is_string($data[S::ROLE_CLAIM]) || $data[S::ROLE_CLAIM] === '') {
+
+        $roleClaim = $this->effective($data, S::ROLE_CLAIM);
+        if (!is_string($roleClaim) || $roleClaim === '') {
             throw new InvalidConfigurationException('role_claim must be a non-empty string.');
         }
-        if (array_key_exists(S::ROLES_MAP, $data)) {
-            $map = $data[S::ROLES_MAP];
-            if (!is_array($map)) {
-                throw new InvalidConfigurationException('roles_map must be an array.');
+
+        $map = $this->effective($data, S::ROLES_MAP);
+        if (!is_array($map)) {
+            throw new InvalidConfigurationException('roles_map must be an array.');
+        }
+        foreach ($map as $key => $role) {
+            if (!is_string($key) || $key === '') {
+                throw new InvalidConfigurationException('roles_map keys must be non-empty strings.');
             }
-            foreach ($map as $key => $role) {
-                if (!is_string($key) || $key === '') {
-                    throw new InvalidConfigurationException('roles_map keys must be non-empty strings.');
-                }
-                if (!in_array($role, self::ALLOWED_ROLES, true)) {
-                    throw new InvalidConfigurationException(sprintf(
-                        'roles_map[%s] = %s is not a recognised Omeka role.',
-                        $key,
-                        is_scalar($role) ? (string) $role : gettype($role)
-                    ));
-                }
+            if (!in_array($role, self::ALLOWED_ROLES, true)) {
+                throw new InvalidConfigurationException(sprintf(
+                    'roles_map[%s] = %s is not a recognised Omeka role.',
+                    $key,
+                    is_scalar($role) ? (string) $role : gettype($role)
+                ));
             }
         }
-        if (array_key_exists(S::ROLE_DEFAULT, $data) && $data[S::ROLE_DEFAULT] !== null) {
-            if (!in_array($data[S::ROLE_DEFAULT], self::ALLOWED_ROLES, true)) {
-                throw new InvalidConfigurationException('role_default is not a recognised Omeka role.');
-            }
+
+        $roleDefault = $this->effective($data, S::ROLE_DEFAULT);
+        if ($roleDefault !== null && !in_array($roleDefault, self::ALLOWED_ROLES, true)) {
+            throw new InvalidConfigurationException('role_default is not a recognised Omeka role.');
         }
-        if (array_key_exists(S::ACCESS_GUARD_CLAIM, $data) && $data[S::ACCESS_GUARD_CLAIM] !== null
-            && !is_string($data[S::ACCESS_GUARD_CLAIM])
-        ) {
+
+        $guardClaim = $this->effective($data, S::ACCESS_GUARD_CLAIM);
+        if ($guardClaim !== null && !is_string($guardClaim)) {
             throw new InvalidConfigurationException('access_guard_claim must be a string or null.');
         }
-        if (array_key_exists(S::ACCESS_GUARD_VALUE, $data) && $data[S::ACCESS_GUARD_VALUE] !== null
-            && !is_string($data[S::ACCESS_GUARD_VALUE])
-        ) {
+        $guardValue = $this->effective($data, S::ACCESS_GUARD_VALUE);
+        if ($guardValue !== null && !is_string($guardValue)) {
             throw new InvalidConfigurationException('access_guard_value must be a string or null.');
         }
-        $guardClaim = array_key_exists(S::ACCESS_GUARD_CLAIM, $data)
-            ? $data[S::ACCESS_GUARD_CLAIM]
-            : $this->settings->get(S::ACCESS_GUARD_CLAIM);
-        $guardValue = array_key_exists(S::ACCESS_GUARD_VALUE, $data)
-            ? $data[S::ACCESS_GUARD_VALUE]
-            : $this->settings->get(S::ACCESS_GUARD_VALUE);
         $hasGuardClaim = is_string($guardClaim) && trim($guardClaim) !== '';
         $hasGuardValue = is_string($guardValue) && trim($guardValue) !== '';
         if ($hasGuardClaim !== $hasGuardValue) {
@@ -156,29 +142,42 @@ class Configurator
                 'access_guard_claim and access_guard_value must either both be set or both be null.'
             );
         }
-        if (array_key_exists(S::HIDE_LOCAL_LOGIN, $data) && !is_bool($data[S::HIDE_LOCAL_LOGIN])) {
+
+        $hideLocalLogin = $this->effective($data, S::HIDE_LOCAL_LOGIN);
+        if (!is_bool($hideLocalLogin)) {
             throw new InvalidConfigurationException('hide_local_login must be a boolean.');
         }
-        if (array_key_exists(S::REDIRECT, $data)) {
-            if (!is_string($data[S::REDIRECT]) || !RedirectUrl::hasSafeSyntax($data[S::REDIRECT])) {
-                throw new InvalidConfigurationException(
-                    'redirect must be "home", a root-relative path, or an absolute HTTP(S) URL without user information.'
-                );
+
+        $redirect = $this->effective($data, S::REDIRECT);
+        if (!is_string($redirect) || !RedirectUrl::hasSafeSyntax($redirect)) {
+            throw new InvalidConfigurationException(
+                'redirect must be "home", a root-relative path, or an absolute HTTP(S) URL without user information.'
+            );
+        }
+
+        $display = $this->effective($data, S::CLAIMS_DISPLAY);
+        if (!is_array($display)) {
+            throw new InvalidConfigurationException('claims_display must be an array.');
+        }
+        foreach ($display as $claim => $label) {
+            if (!is_string($claim) || $claim === '') {
+                throw new InvalidConfigurationException('claims_display keys must be non-empty claim names.');
+            }
+            if (!is_string($label)) {
+                throw new InvalidConfigurationException('claims_display labels must be strings.');
             }
         }
-        if (array_key_exists(S::CLAIMS_DISPLAY, $data)) {
-            $display = $data[S::CLAIMS_DISPLAY];
-            if (!is_array($display)) {
-                throw new InvalidConfigurationException('claims_display must be an array.');
-            }
-            foreach ($display as $claim => $label) {
-                if (!is_string($claim) || $claim === '') {
-                    throw new InvalidConfigurationException('claims_display keys must be non-empty claim names.');
-                }
-                if (!is_string($label)) {
-                    throw new InvalidConfigurationException('claims_display labels must be strings.');
-                }
-            }
+    }
+
+    /**
+     * Resolve the value that would be in effect after this update without
+     * forcing callers to resend unrelated settings.
+     */
+    private function effective(array $data, string $key)
+    {
+        if (array_key_exists($key, $data)) {
+            return $data[$key];
         }
+        return $this->settings->get($key, S::DEFAULTS[$key] ?? null);
     }
 }
