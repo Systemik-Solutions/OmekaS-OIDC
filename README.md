@@ -168,6 +168,7 @@ omeka-instance-a-researcher
 
 - **Identity:** stable composite key `sub` + `iss` from the IdP. Email changes don't break the link.
 - **Provisioning:** new user created on first login with a random 32-byte password (never disclosed — the account is OIDC-only).
+- **Existing email addresses:** local accounts are never linked to OIDC identities automatically. If the IdP-provided email belongs to another Omeka user, login is denied until an administrator reconciles the accounts.
 - **Sync on every login:** name, email, and role are re-derived from claims and updated if changed. Manual role overrides in Omeka admin will be **overwritten** on next login.
 - **Local password protection:**
   - Forgot-password flow blocked for OIDC users on the standard login page.

@@ -3,6 +3,7 @@ namespace Oidc\Controller;
 
 use DateTime;
 use DateTimeInterface;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManager;
 use Facile\OpenIDClient\Client\ClientInterface;
 use Facile\OpenIDClient\Service\Builder\AuthorizationServiceBuilder;
@@ -221,6 +222,15 @@ class OidcController extends AbstractActionController
             return $this->denied('Your account has no role assigned for this site. Contact the administrator.');
         }
 
+        $user = $this->findUserBySubIss($sub, $iss);
+        if ($user && !$user->isActive()) {
+            return $this->denied('Your account is inactive. Contact the administrator.');
+        }
+        if ($this->claimedEmailBelongsToAnotherUser($claims, $user)) {
+            $this->logger->warn('OIDC login denied because the claimed email address belongs to another Omeka user.');
+            return $this->denied('An account with this email address already exists. Contact the administrator.');
+        }
+
         // Rotate the pre-authentication session before changing any user data
         // or writing an authenticated identity. Treat both exceptions and an
         // unchanged session ID as a failed rotation.
@@ -237,15 +247,18 @@ class OidcController extends AbstractActionController
             return $this->denied('Sign-in could not be completed securely. Please try again.');
         }
 
-        $user = $this->findUserBySubIss($sub, $iss);
-        if ($user && !$user->isActive()) {
-            return $this->denied('Your account is inactive. Contact the administrator.');
-        }
-
-        if (!$user) {
-            $user = $this->provisionUser($claims, $role);
-        } else {
-            $this->syncUser($user, $claims, $role);
+        try {
+            if (!$user) {
+                $user = $this->provisionUser($claims, $role);
+            } else {
+                $this->syncUser($user, $claims, $role);
+            }
+        } catch (UniqueConstraintViolationException $e) {
+            // The preflight check above provides a clear result in the normal
+            // case; this catch also closes the race between that read and the
+            // database write.
+            $this->logger->err('OIDC user save failed because of a unique constraint violation.', ['exception' => $e]);
+            return $this->denied('An account with this email address already exists. Contact the administrator.');
         }
 
         $this->storeSessionMetadata($user, $sub, $iss, $claims);
@@ -341,6 +354,28 @@ class OidcController extends AbstractActionController
             return null;
         }
         return $this->entityManager->find(User::class, (int) $userId);
+    }
+
+    /**
+     * Return true when the IdP-provided email is already assigned to an Omeka
+     * account other than the OIDC identity being processed. Existing local
+     * accounts are deliberately not linked implicitly.
+     */
+    private function claimedEmailBelongsToAnotherUser(array $claims, ?User $user): bool
+    {
+        $email = $claims['email'] ?? null;
+        if (!is_string($email) || $email === '') {
+            return false;
+        }
+
+        $owner = $this->entityManager
+            ->getRepository(User::class)
+            ->findOneBy(['email' => $email]);
+        if (!$owner) {
+            return false;
+        }
+
+        return !$user || (int) $owner->getId() !== (int) $user->getId();
     }
 
     /**
