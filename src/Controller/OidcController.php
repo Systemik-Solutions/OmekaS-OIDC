@@ -217,6 +217,13 @@ class OidcController extends AbstractActionController
         if (!$sub || !$iss) {
             return $this->denied('OIDC response missing required identifier.');
         }
+        $email = $this->resolveRequiredEmail($claims);
+        if ($email === null) {
+            $this->logger->err('OIDC login denied because the identity provider returned no usable email claim.');
+            return $this->denied(
+                'Your identity provider did not supply an email address. Contact the administrator.'
+            );
+        }
 
         $role = $this->resolveRole($claims);
         if ($role === null) {
@@ -227,7 +234,7 @@ class OidcController extends AbstractActionController
         if ($user && !$user->isActive()) {
             return $this->denied('Your account is inactive. Contact the administrator.');
         }
-        if ($this->claimedEmailBelongsToAnotherUser($claims, $user)) {
+        if ($this->claimedEmailBelongsToAnotherUser($email, $user)) {
             $this->logger->warn('OIDC login denied because the claimed email address belongs to another Omeka user.');
             return $this->denied('An account with this email address already exists. Contact the administrator.');
         }
@@ -250,9 +257,9 @@ class OidcController extends AbstractActionController
 
         try {
             if (!$user) {
-                $user = $this->provisionUser($claims, $role);
+                $user = $this->provisionUser($claims, $role, $email);
             } else {
-                $this->syncUser($user, $claims, $role);
+                $this->syncUser($user, $claims, $role, $email);
             }
         } catch (UniqueConstraintViolationException $e) {
             // The preflight check above provides a clear result in the normal
@@ -378,13 +385,8 @@ class OidcController extends AbstractActionController
      * account other than the OIDC identity being processed. Existing local
      * accounts are deliberately not linked implicitly.
      */
-    private function claimedEmailBelongsToAnotherUser(array $claims, ?User $user): bool
+    private function claimedEmailBelongsToAnotherUser(string $email, ?User $user): bool
     {
-        $email = $claims['email'] ?? null;
-        if (!is_string($email) || $email === '') {
-            return false;
-        }
-
         $owner = $this->entityManager
             ->getRepository(User::class)
             ->findOneBy(['email' => $email]);
@@ -396,14 +398,25 @@ class OidcController extends AbstractActionController
     }
 
     /**
+     * Omeka requires a usable email address for every User. Missing, empty,
+     * whitespace-only, and non-string claims are rejected instead of being
+     * replaced with a fabricated local address.
+     */
+    private function resolveRequiredEmail(array $claims): ?string
+    {
+        $email = $claims['email'] ?? null;
+        return is_string($email) && trim($email) !== '' ? $email : null;
+    }
+
+    /**
      * Just-in-time create a new Omeka user from OIDC claims. Sets a random
      * 32-byte password the user can never know — the account is OIDC-only —
      * and flags it with the oidc_managed user-setting.
      */
-    private function provisionUser(array $claims, string $role): User
+    private function provisionUser(array $claims, string $role, string $email): User
     {
         $user = new User();
-        $user->setEmail($claims['email'] ?? sprintf('%s@%s', substr(bin2hex(random_bytes(8)), 0, 12), 'oidc.local'));
+        $user->setEmail($email);
         $user->setName($this->resolveDisplayName($claims));
         $user->setRole($role);
         $user->setIsActive(true);
@@ -421,7 +434,7 @@ class OidcController extends AbstractActionController
      * Only flushes when something actually changed. Callers must reject the
      * login before this point when the current claims yield no role.
      */
-    private function syncUser(User $user, array $claims, string $role): void
+    private function syncUser(User $user, array $claims, string $role, string $email): void
     {
         $name = $this->resolveDisplayName($claims);
         $changed = false;
@@ -429,8 +442,7 @@ class OidcController extends AbstractActionController
             $user->setName($name);
             $changed = true;
         }
-        $email = $claims['email'] ?? null;
-        if ($email && $email !== $user->getEmail()) {
+        if ($email !== $user->getEmail()) {
             $user->setEmail($email);
             $changed = true;
         }
