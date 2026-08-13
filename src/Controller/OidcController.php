@@ -324,9 +324,13 @@ class OidcController extends AbstractActionController
                 INNER JOIN user_setting s_iss
                     ON s_iss.user_id = s_sub.user_id AND s_iss.id = :iss_key
                 WHERE s_sub.id = :sub_key
-                  AND s_sub.value = :sub_val
-                  AND s_iss.value = :iss_val
+                  AND BINARY s_sub.value = :sub_val
+                  AND BINARY s_iss.value = :iss_val
                 LIMIT 1';
+        // user_setting.value uses Doctrine's json_array type, so scalar
+        // strings are stored as JSON string literals. BINARY is required here
+        // because sub and iss are case-sensitive OIDC identifiers, while the
+        // table's default utf8mb4_unicode_ci collation is not.
         $userId = $conn->fetchOne($sql, [
             'sub_key' => 'oidc_sub',
             'iss_key' => 'oidc_iss',
