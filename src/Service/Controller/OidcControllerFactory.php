@@ -34,7 +34,8 @@ class OidcControllerFactory implements FactoryInterface
             $container->get('Omeka\EntityManager'),
             $container->get('Omeka\Settings'),
             $container->get('Omeka\Settings\User'),
-            $sessionManager
+            $sessionManager,
+            $container->get('Omeka\Logger')
         );
     }
 }

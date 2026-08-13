@@ -3,6 +3,7 @@ namespace Oidc\Service;
 
 use Oidc\Exception\InvalidConfigurationException;
 use Oidc\Settings as S;
+use Oidc\Stdlib\RedirectUrl;
 use Omeka\Settings\Settings;
 
 class Configurator
@@ -129,8 +130,28 @@ class Configurator
         ) {
             throw new InvalidConfigurationException('access_guard_value must be a string or null.');
         }
+        $guardClaim = array_key_exists(S::ACCESS_GUARD_CLAIM, $data)
+            ? $data[S::ACCESS_GUARD_CLAIM]
+            : $this->settings->get(S::ACCESS_GUARD_CLAIM);
+        $guardValue = array_key_exists(S::ACCESS_GUARD_VALUE, $data)
+            ? $data[S::ACCESS_GUARD_VALUE]
+            : $this->settings->get(S::ACCESS_GUARD_VALUE);
+        $hasGuardClaim = is_string($guardClaim) && trim($guardClaim) !== '';
+        $hasGuardValue = is_string($guardValue) && trim($guardValue) !== '';
+        if ($hasGuardClaim !== $hasGuardValue) {
+            throw new InvalidConfigurationException(
+                'access_guard_claim and access_guard_value must either both be set or both be null.'
+            );
+        }
         if (array_key_exists(S::HIDE_LOCAL_LOGIN, $data) && !is_bool($data[S::HIDE_LOCAL_LOGIN])) {
             throw new InvalidConfigurationException('hide_local_login must be a boolean.');
+        }
+        if (array_key_exists(S::REDIRECT, $data)) {
+            if (!is_string($data[S::REDIRECT]) || !RedirectUrl::hasSafeSyntax($data[S::REDIRECT])) {
+                throw new InvalidConfigurationException(
+                    'redirect must be "home", a root-relative path, or an absolute HTTP(S) URL without user information.'
+                );
+            }
         }
         if (array_key_exists(S::CLAIMS_DISPLAY, $data)) {
             $display = $data[S::CLAIMS_DISPLAY];

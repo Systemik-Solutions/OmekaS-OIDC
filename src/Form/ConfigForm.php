@@ -7,6 +7,8 @@ use Oidc\Settings as S;
 
 class ConfigForm extends Form
 {
+    private const ACCESS_GUARD_PAIR_ERROR = 'Access-guard claim and access-guard value must either both be set or both be blank.';
+
     // TODO. for secret find somethig to fill
     private const ROLE_CHOICES = [
         ''             => '[ none ]',
@@ -213,6 +215,27 @@ class ConfigForm extends Form
     }
 
     /**
+     * Add cross-field validation for the access guard. Configuring only one
+     * half of the pair would otherwise make the runtime guard ambiguous.
+     */
+    public function isValid(): bool
+    {
+        $isValid = parent::isValid();
+        $claim = $this->get(S::ACCESS_GUARD_CLAIM)->getValue();
+        $value = $this->get(S::ACCESS_GUARD_VALUE)->getValue();
+        $hasClaim = is_string($claim) && trim($claim) !== '';
+        $hasValue = is_string($value) && trim($value) !== '';
+
+        if ($hasClaim !== $hasValue) {
+            $missingElement = $hasClaim ? S::ACCESS_GUARD_VALUE : S::ACCESS_GUARD_CLAIM;
+            $this->get($missingElement)->setMessages([self::ACCESS_GUARD_PAIR_ERROR]);
+            return false;
+        }
+
+        return $isValid;
+    }
+
+    /**
      * Convert stored settings (with array-typed fields) into form-field values
      * (where arrays are flattened to text strings).
      */
@@ -269,8 +292,11 @@ class ConfigForm extends Form
             $out[S::ROLE_DEFAULT] = null;
         }
         foreach ([S::ACCESS_GUARD_CLAIM, S::ACCESS_GUARD_VALUE] as $k) {
-            if (array_key_exists($k, $out) && $out[$k] === '') {
-                $out[$k] = null;
+            if (array_key_exists($k, $out) && is_string($out[$k])) {
+                $out[$k] = trim($out[$k]);
+                if ($out[$k] === '') {
+                    $out[$k] = null;
+                }
             }
         }
         if (array_key_exists(S::HIDE_LOCAL_LOGIN, $out)) {

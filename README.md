@@ -72,7 +72,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 | **Role claim** | Name of the claim carrying group memberships. CILogon: `isMemberOf`. Dex: `groups`. AAF: varies — check the actual claims (see "Debugging claims"). |
 | **Roles map** | Lines like `<group-substring> = <omeka-role>`. Substring is matched anywhere within a claim value, so `omeka-instance-a-editor` matches the COU path `CO:COU:omeka-instance-a-editor:members:active`. |
 | **Default role** | Fallback role when no roles_map entry matches. Leave blank to **deny** unmapped users. |
-| **Access-guard claim** / **Access-guard value** | **Optional gate** — restricts who can sign in. Both fields must be set together for the gate to activate; leave either blank and any authenticated user is allowed. Set them only if you want to limit access to a specific institution, project group, or affiliation. The user is admitted if the named claim contains the given substring in at least one of its values. Common patterns: <br>• Restrict to one university — claim `eppn`, value `@sydney.edu.au` <br>• Restrict to a CILogon project group — claim `isMemberOf`, value `omeka-instance-a` <br>• Restrict to staff only — claim `affiliation`, value `employee@` |
+| **Access-guard claim** / **Access-guard value** | **Optional gate** — restricts who can sign in. Both fields must be set together for the gate to activate; leave both blank to disable it. A partially configured pair is rejected. Set them only if you want to limit access to a specific institution, project group, or affiliation. 
 
 **Allowed Omeka role IDs:** `global_admin`, `site_admin`, `editor`, `reviewer`, `author`, `researcher`. Note that `site_admin` is displayed as **"Supervisor"** in the Omeka UI but the internal ID is `site_admin`.
 
@@ -81,7 +81,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 | Field | Description |
 |---|---|
 | **Hide local login form** | Hides the username/password fields on the standard login page. The local form is still reachable as a super-admin fallback (the URL works, the fields are CSS-hidden). |
-| **Post-login redirect** | Where to send users after successful login. Use `home`, a site-relative path like `/items`, or an absolute URL on this host. |
+| **Post-login redirect** | Where to send users after successful login. Use `home`, a site-relative path like `/items`, or an HTTP(S) URL on the same origin. |
 | **Claims to display** | Lines like `<claim-name> = <label>`. Stored on every login as user-settings. Empty label = stored but not shown in the user admin UI. |
 
 ---
@@ -153,11 +153,13 @@ omeka-instance-a-researcher
    ↓
 8. Role resolved from claims via roles_map / default
    ↓
-9. User looked up by sub+iss → found: sync; not found: provision
+9. Session ID is regenerated; login stops if rotation fails
    ↓
-10. Identity written to Omeka's auth storage → user is logged in
+10. User looked up by sub+iss → found: sync; not found: provision
    ↓
-11. Redirect to post-login URL
+11. Identity written to Omeka's auth storage → user is logged in
+   ↓
+12. Redirect to post-login URL
 ```
 
 ---

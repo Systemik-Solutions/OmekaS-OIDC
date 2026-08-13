@@ -9,12 +9,14 @@ use Facile\OpenIDClient\Service\Builder\AuthorizationServiceBuilder;
 use Facile\OpenIDClient\Service\Builder\UserInfoServiceBuilder;
 use Facile\OpenIDClient\Session\AuthSession;
 use Laminas\Authentication\AuthenticationService;
+use Laminas\Log\LoggerInterface;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\Session\Container as SessionContainer;
 use Laminas\Session\SessionManager;
 use Laminas\View\Model\ViewModel;
 use Oidc\Exception\NotConfiguredException;
 use Oidc\Settings as S;
+use Oidc\Stdlib\RedirectUrl;
 use Omeka\Entity\User;
 use Omeka\Settings\Settings;
 use Omeka\Settings\UserSettings;
@@ -36,6 +38,7 @@ class OidcController extends AbstractActionController
     private $settings;
     private $userSettings;
     private $sessionManager;
+    private $logger;
 
     /**
      * Inject dependencies. The OIDC client is nullable because it cannot be
@@ -47,7 +50,8 @@ class OidcController extends AbstractActionController
         EntityManager $entityManager,
         Settings $settings,
         UserSettings $userSettings,
-        SessionManager $sessionManager
+        SessionManager $sessionManager,
+        LoggerInterface $logger
     ) {
         $this->client = $client;
         $this->authentication = $authentication;
@@ -55,6 +59,7 @@ class OidcController extends AbstractActionController
         $this->settings = $settings;
         $this->userSettings = $userSettings;
         $this->sessionManager = $sessionManager;
+        $this->logger = $logger;
     }
 
     /**
@@ -74,9 +79,14 @@ class OidcController extends AbstractActionController
 
         $session = new SessionContainer('Oidc');
 
+        // Do not carry a destination over from an abandoned login attempt.
+        unset($session->returnUrl);
         $returnUrl = $this->params()->fromQuery('redirect');
-        if ($returnUrl) {
-            $session->returnUrl = $returnUrl;
+        if (is_string($returnUrl) && $returnUrl !== '') {
+            $validatedReturnUrl = $this->validateLocalUrl($returnUrl);
+            if ($validatedReturnUrl !== null) {
+                $session->returnUrl = $validatedReturnUrl;
+            }
         }
 
         $state = bin2hex(random_bytes(16));
@@ -168,6 +178,7 @@ class OidcController extends AbstractActionController
             );
             $idClaims = $tokenSet->claims();
         } catch (\Throwable $e) {
+            $this->logger->err('OIDC authorization callback failed.', ['exception' => $e]);
             return $this->denied('OIDC sign-in failed. Please try again.');
         }
 
@@ -178,16 +189,24 @@ class OidcController extends AbstractActionController
         try {
             $userInfo = $userInfoService->getUserInfo($this->client, $tokenSet);
         } catch (\Throwable $e) {
-            $userInfo = [];
+            $this->logger->err('OIDC userinfo request failed.', ['exception' => $e]);
+            return $this->denied('Sign-in could not be completed. Please try again.');
         }
         if (!is_array($userInfo)) {
-            $userInfo = [];
+            $this->logger->err('OIDC userinfo response was not an array; login denied.');
+            return $this->denied('Sign-in could not be completed. Please try again.');
         }
         $claims = array_merge($idClaims, $userInfo);
 
         $guardClaim = $this->settings->get(S::ACCESS_GUARD_CLAIM);
         $guardValue = $this->settings->get(S::ACCESS_GUARD_VALUE);
-        if ($guardClaim && $guardValue && !$this->claimContains($claims, $guardClaim, $guardValue)) {
+        $hasGuardClaim = is_string($guardClaim) && trim($guardClaim) !== '';
+        $hasGuardValue = is_string($guardValue) && trim($guardValue) !== '';
+        if ($hasGuardClaim !== $hasGuardValue) {
+            $this->logger->err('OIDC access guard is partially configured; login denied.');
+            return $this->denied('OIDC access control is not configured correctly. Contact the administrator.');
+        }
+        if ($hasGuardClaim && !$this->claimContains($claims, $guardClaim, $guardValue)) {
             return $this->denied('You are not authorised to access this site. Contact the administrator.');
         }
 
@@ -198,6 +217,25 @@ class OidcController extends AbstractActionController
         }
 
         $role = $this->resolveRole($claims);
+        if ($role === null) {
+            return $this->denied('Your account has no role assigned for this site. Contact the administrator.');
+        }
+
+        // Rotate the pre-authentication session before changing any user data
+        // or writing an authenticated identity. Treat both exceptions and an
+        // unchanged session ID as a failed rotation.
+        $previousSessionId = $this->sessionManager->getId();
+        try {
+            $this->sessionManager->regenerateId();
+        } catch (\Throwable $e) {
+            $this->logger->crit('OIDC session ID regeneration failed; login denied.', ['exception' => $e]);
+            return $this->denied('Sign-in could not be completed securely. Please try again.');
+        }
+        $newSessionId = $this->sessionManager->getId();
+        if ($previousSessionId === '' || $newSessionId === '' || hash_equals($previousSessionId, $newSessionId)) {
+            $this->logger->crit('OIDC session ID did not change after regeneration; login denied.');
+            return $this->denied('Sign-in could not be completed securely. Please try again.');
+        }
 
         $user = $this->findUserBySubIss($sub, $iss);
         if ($user && !$user->isActive()) {
@@ -205,20 +243,12 @@ class OidcController extends AbstractActionController
         }
 
         if (!$user) {
-            if ($role === null) {
-                return $this->denied('Your account has no role assigned for this site. Contact the administrator.');
-            }
             $user = $this->provisionUser($claims, $role);
         } else {
             $this->syncUser($user, $claims, $role);
         }
 
         $this->storeSessionMetadata($user, $sub, $iss, $claims);
-
-        try {
-            $this->sessionManager->regenerateId();
-        } catch (\Throwable $e) {
-        }
 
         // Write user to auth storage:
         $this->authentication->getStorage()->write($user);
@@ -264,6 +294,7 @@ class OidcController extends AbstractActionController
                     $endSessionUrl = $endpoint . (str_contains($endpoint, '?') ? '&' : '?') . http_build_query($params);
                 }
             } catch (\Throwable $e) {
+                $this->logger->warn('OIDC end-session endpoint discovery failed; using local logout.', ['exception' => $e]);
                 $endSessionUrl = null;
             }
         }
@@ -273,6 +304,8 @@ class OidcController extends AbstractActionController
         try {
             $this->sessionManager->destroy(['clear_storage' => true]);
         } catch (\Throwable $e) {
+            $this->logger->crit('OIDC local session destruction failed during logout.', ['exception' => $e]);
+            throw $e;
         }
 
         return $this->redirect()->toUrl($endSessionUrl ?: $this->absoluteUrl('/'));
@@ -329,10 +362,10 @@ class OidcController extends AbstractActionController
 
     /**
      * Update an existing user's name, email, and role from the latest claims.
-     * Only flushes when something actually changed. A null role means the
-     * roles map yielded no match this login — the existing role is kept.
+     * Only flushes when something actually changed. Callers must reject the
+     * login before this point when the current claims yield no role.
      */
-    private function syncUser(User $user, array $claims, ?string $role): void
+    private function syncUser(User $user, array $claims, string $role): void
     {
         $name = $this->resolveDisplayName($claims);
         $changed = false;
@@ -345,7 +378,7 @@ class OidcController extends AbstractActionController
             $user->setEmail($email);
             $changed = true;
         }
-        if ($role !== null && $role !== $user->getRole()) {
+        if ($role !== $user->getRole()) {
             $user->setRole($role);
             $changed = true;
         }
@@ -484,24 +517,20 @@ class OidcController extends AbstractActionController
 
     /**
      * Open-redirect guard. Accepts site-relative paths (/items) or absolute
-     * URLs whose host matches this request's host. Returns null for anything
-     * that would send the user off-site.
+     * HTTP(S) URLs on this request's origin. Safe absolute URLs are rebuilt
+     * from validated components to avoid PHP/browser parser differences.
      */
     private function validateLocalUrl(string $url): ?string
     {
-        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
-            return $this->absoluteUrl($url);
-        }
-        $parts = parse_url($url);
-        if (!$parts || empty($parts['host'])) {
-            return null;
-        }
         $request = $this->getRequest();
-        $own = $request->getUri()->getHost();
-        if (strcasecmp($parts['host'], $own) !== 0) {
-            return null;
-        }
-        return $url;
+        $uri = $request->getUri();
+        return RedirectUrl::normalizeForOrigin(
+            $url,
+            $uri->getScheme(),
+            $uri->getHost(),
+            $uri->getPort(),
+            $request->getBaseUrl()
+        );
     }
 
     /**
