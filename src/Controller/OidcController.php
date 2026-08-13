@@ -276,8 +276,24 @@ class OidcController extends AbstractActionController
         $this->getEventManager()->trigger('user.login', $user);
 
         $target = $this->resolvePostLoginUrl($returnUrl);
+        return $this->createCallbackView($target);
+    }
+
+    /**
+     * Render the post-authentication transition as a standalone document.
+     * Besides avoiding a complete document nested inside Omeka's layout, the
+     * response must not be cached or send the callback's code/state URL as a
+     * referrer when navigating to the final destination.
+     */
+    private function createCallbackView(string $target): ViewModel
+    {
+        $headers = $this->getResponse()->getHeaders();
+        $headers->addHeaderLine('Cache-Control', 'no-store');
+        $headers->addHeaderLine('Referrer-Policy', 'no-referrer');
+
         $view = new ViewModel(['target' => $target]);
         $view->setTemplate('oidc/oidc/callback');
+        $view->setTerminal(true);
         return $view;
     }
 
