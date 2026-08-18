@@ -6,6 +6,7 @@ use Laminas\EventManager\SharedEventManagerInterface;
 use Laminas\ModuleManager\ModuleManager;
 use Laminas\Mvc\Controller\AbstractController;
 use Laminas\Mvc\MvcEvent;
+use Laminas\ServiceManager\ServiceLocatorInterface;
 use Laminas\View\Renderer\PhpRenderer;
 use Oidc\Exception\InvalidConfigurationException;
 use Oidc\Form\ConfigForm;
@@ -15,6 +16,8 @@ use Omeka\Module\AbstractModule;
 
 class Module extends AbstractModule
 {
+    private const BASE_URL_WARNING = 'OIDC: Public base URL is not set. OIDC sign-in is disabled until it is configured in the module settings.';
+
     public function init(ModuleManager $moduleManager)
     {
         require_once __DIR__ . '/vendor/autoload.php';
@@ -23,6 +26,22 @@ class Module extends AbstractModule
     public function getConfig()
     {
         return include __DIR__ . '/config/module.config.php';
+    }
+
+    /**
+     * Make the new required public base URL discoverable to administrators
+     * upgrading from 1.0.x. It cannot be migrated automatically because Omeka
+     * has no canonical stored installation URL.
+     */
+    public function upgrade(
+        $oldVersion,
+        $newVersion,
+        ServiceLocatorInterface $services
+    ): void
+    {
+        if (version_compare($oldVersion, '1.1.0', '<')) {
+            $this->warnIfBaseUrlMissing($services, true);
+        }
     }
 
     public function onBootstrap(MvcEvent $event)
@@ -275,7 +294,32 @@ class Module extends AbstractModule
         }
         $form->setData(ConfigForm::settingsToFormData($stored));
 
+        $this->warnIfBaseUrlMissing($services);
+
         return $renderer->formCollection($form, false);
+    }
+
+    /**
+     * Surface the required setting in the admin UI and optionally the log.
+     */
+    private function warnIfBaseUrlMissing(
+        ServiceLocatorInterface $services,
+        bool $writeLog = false
+    ): bool
+    {
+        $settings = $services->get('Omeka\Settings');
+        if ($settings->get(Settings::BASE_URL)) {
+            return false;
+        }
+
+        if ($writeLog) {
+            $services->get('Omeka\Logger')->warn(self::BASE_URL_WARNING);
+        }
+        $services
+            ->get('ControllerPluginManager')
+            ->get('messenger')
+            ->addWarning(self::BASE_URL_WARNING);
+        return true;
     }
 
     public function handleConfigForm(AbstractController $controller)
