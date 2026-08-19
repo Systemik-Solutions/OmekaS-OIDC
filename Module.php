@@ -244,7 +244,12 @@ class Module extends AbstractModule
         $button = $renderer->oidcLoginLink();
         $injection = $button;
 
-        if ($settings->get(Settings::HIDE_LOCAL_LOGIN, Settings::DEFAULTS[Settings::HIDE_LOCAL_LOGIN])) {
+        // Keep the local form available while the required public base URL is
+        // unset, otherwise an upgrade from 1.0.x can leave administrators
+        // without any usable way to sign in and finish configuring OIDC.
+        if ($settings->get(Settings::HIDE_LOCAL_LOGIN, Settings::DEFAULTS[Settings::HIDE_LOCAL_LOGIN])
+            && $settings->get(Settings::BASE_URL)
+        ) {
             $injection .= '<style>'
                 . '.field:has(#email), .field:has(#password),'
                 . 'input[type="submit"][name="submit"],'
