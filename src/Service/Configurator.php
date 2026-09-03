@@ -23,6 +23,7 @@ class Configurator
         'hide_local_login'    => S::HIDE_LOCAL_LOGIN,
         'redirect'            => S::REDIRECT,
         'claims_display'      => S::CLAIMS_DISPLAY,
+        'link_existing_by_email' => S::LINK_BY_EMAIL,
     ];
 
     private const ALLOWED_ROLES = [
@@ -153,6 +154,11 @@ class Configurator
             throw new InvalidConfigurationException(
                 'redirect must be "home", a root-relative path, or an absolute HTTP(S) URL without user information.'
             );
+        }
+
+        $linkByEmail = $this->effective($data, S::LINK_BY_EMAIL);
+        if (!is_bool($linkByEmail)) {
+            throw new InvalidConfigurationException('link_existing_by_email must be a boolean.');
         }
 
         $display = $this->effective($data, S::CLAIMS_DISPLAY);

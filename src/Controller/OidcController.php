@@ -231,6 +231,15 @@ class OidcController extends AbstractActionController
         }
 
         $user = $this->findUserBySubIss($sub, $iss);
+        if (!$user && $this->settings->get(S::LINK_BY_EMAIL, S::DEFAULTS[S::LINK_BY_EMAIL])) {
+            $user = $this->findUserByEmail($email);
+            if ($user) {
+                $this->logger->notice(sprintf(
+                    'OIDC linked existing Omeka user %d to an OIDC identity by email address.',
+                    $user->getId()
+                ));
+            }
+        }
         if ($user && !$user->isActive()) {
             return $this->denied('Your account is inactive. Contact the administrator.');
         }
@@ -383,18 +392,23 @@ class OidcController extends AbstractActionController
     /**
      * Return true when the IdP-provided email is already assigned to an Omeka
      * account other than the OIDC identity being processed. Existing local
-     * accounts are deliberately not linked implicitly.
+     * accounts are only linked when link_existing_by_email is enabled.
      */
     private function claimedEmailBelongsToAnotherUser(string $email, ?User $user): bool
     {
-        $owner = $this->entityManager
-            ->getRepository(User::class)
-            ->findOneBy(['email' => $email]);
+        $owner = $this->findUserByEmail($email);
         if (!$owner) {
             return false;
         }
 
         return !$user || (int) $owner->getId() !== (int) $user->getId();
+    }
+
+    private function findUserByEmail(string $email): ?User
+    {
+        return $this->entityManager
+            ->getRepository(User::class)
+            ->findOneBy(['email' => $email]);
     }
 
     /**

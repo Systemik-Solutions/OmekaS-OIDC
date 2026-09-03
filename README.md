@@ -73,6 +73,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 | **Role claim** | Name of the claim carrying group memberships. CILogon: `isMemberOf`. Dex: `groups`. AAF: varies — check the actual claims (see "Debugging claims"). |
 | **Roles map** | Lines like `<group-substring> = <omeka-role>`. Substring is matched anywhere within a claim value, so `omeka-instance-a-editor` matches the COU path `CO:COU:omeka-instance-a-editor:members:active`. |
 | **Default role** | Fallback role when no roles_map entry matches. Leave blank to **deny** unmapped users. |
+| **Link existing accounts by email** | **Off by default.** Adopt an existing Omeka account whose email matches the `email` claim instead of refusing the login. See "Linking existing accounts" below before enabling it. |
 | **Access-guard claim** / **Access-guard value** | **Optional gate** — restricts who can sign in. Both fields must be set together for the gate to activate; leave both blank to disable it. A partially configured pair is rejected. Set them only if you want to limit access to a specific institution, project group, or affiliation. |
 
 **Allowed Omeka role IDs:** `global_admin`, `site_admin`, `editor`, `reviewer`, `author`, `researcher`. Note that `site_admin` is displayed as **"Supervisor"** in the Omeka UI but the internal ID is `site_admin`.
@@ -175,7 +176,7 @@ When Omeka runs behind a TLS-terminating reverse proxy, set **Public base URL** 
 - **Identity:** stable composite key `sub` + `iss` from the IdP. Email changes don't break the link.
 - **Required email:** the IdP must return a non-empty string `email` claim. Login is denied with an actionable error when the claim is missing; the module never fabricates placeholder addresses.
 - **Provisioning:** new user created on first login with a random 32-byte password (never disclosed — the account is OIDC-only).
-- **Existing email addresses:** local accounts are never linked to OIDC identities automatically. If the IdP-provided email belongs to another Omeka user, login is denied until an administrator reconciles the accounts.
+- **Existing email addresses:** local accounts are not linked to OIDC identities unless **Link existing accounts by email** is enabled. By default, if the IdP-provided email belongs to another Omeka user, login is denied until an administrator reconciles the accounts.
 - **Sync on every login:** name, email, and role are re-derived from claims and updated if changed. Manual role overrides in Omeka admin will be **overwritten** on next login.
 - **Local password protection:**
   - Forgot-password flow blocked for OIDC users on the standard login page.
@@ -183,6 +184,27 @@ When Omeka runs behind a TLS-terminating reverse proxy, set **Public base URL** 
 - **Logout:** clears the local session, then redirects to the IdP's `end_session_endpoint` (if advertised) so the user is signed out everywhere.
 
 ---
+
+## Linking existing accounts
+
+`Link existing accounts by email` is off by default and exists for one situation: an
+Omeka installation whose users already have accounts — created locally, or provisioned
+by an authentication module being replaced — that should keep working after OIDC is
+introduced. Without it, every one of those users is denied at their first OIDC login
+because their email already belongs to an Omeka account, and an administrator has to
+reconcile each one by hand.
+
+When enabled, a login whose `sub` + `iss` matches no OIDC identity falls back to a
+lookup by the `email` claim. A match adopts that account: `oidc_sub` and `oidc_iss` are
+written to it, so the adoption happens once and every later login resolves through the
+normal sub+iss path. The adopted account is not marked `oidc_managed`, so its local
+password and the password-reset flow are left alone.
+
+**Only enable this when the identity provider is authoritative for the email addresses
+of the accounts it will adopt.** Anyone who can set an arbitrary email address at the
+provider can otherwise claim the matching Omeka account, including an administrator
+account. It is unsafe with a provider that lets users choose their own email address, or
+that does not verify it.
 
 ## Routes
 

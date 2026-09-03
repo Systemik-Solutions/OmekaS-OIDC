@@ -195,6 +195,18 @@ class ConfigForm extends Form
             ],
         ]);
 
+        $this->add([
+            'name' => S::LINK_BY_EMAIL,
+            'type' => Element\Checkbox::class,
+            'options' => [
+                'label' => 'Link existing accounts by email', // @translate
+                'info'  => 'Adopt an existing Omeka account whose email matches the email claim instead of refusing the login. Only use this when the identity provider is authoritative for the email addresses of every existing account, because anyone able to set an email address at the provider can take over the matching Omeka account.', // @translate
+            ],
+            'attributes' => [
+                'id' => 'oidc-link-existing-by-email',
+            ],
+        ]);
+
         $inputFilter = $this->getInputFilter();
         $inputFilter->add([
             'name' => S::CLIENT_SECRET,
@@ -273,6 +285,9 @@ class ConfigForm extends Form
         if (isset($settings[S::HIDE_LOCAL_LOGIN])) {
             $settings[S::HIDE_LOCAL_LOGIN] = (bool) $settings[S::HIDE_LOCAL_LOGIN];
         }
+        if (isset($settings[S::LINK_BY_EMAIL])) {
+            $settings[S::LINK_BY_EMAIL] = (bool) $settings[S::LINK_BY_EMAIL];
+        }
         return $settings;
     }
 
@@ -318,6 +333,9 @@ class ConfigForm extends Form
         }
         if (array_key_exists(S::HIDE_LOCAL_LOGIN, $out)) {
             $out[S::HIDE_LOCAL_LOGIN] = (bool) $out[S::HIDE_LOCAL_LOGIN];
+        }
+        if (array_key_exists(S::LINK_BY_EMAIL, $out)) {
+            $out[S::LINK_BY_EMAIL] = (bool) $out[S::LINK_BY_EMAIL];
         }
         if (array_key_exists(S::CLIENT_SECRET, $out) && $out[S::CLIENT_SECRET] === '') {
             unset($out[S::CLIENT_SECRET]);
