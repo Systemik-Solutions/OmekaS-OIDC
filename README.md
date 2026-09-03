@@ -73,6 +73,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 | **Role claim** | Name of the claim carrying group memberships. CILogon: `isMemberOf`. Dex: `groups`. AAF: varies — check the actual claims (see "Debugging claims"). |
 | **Roles map** | Lines like `<group-substring> = <omeka-role>`. Substring is matched anywhere within a claim value, so `omeka-instance-a-editor` matches the COU path `CO:COU:omeka-instance-a-editor:members:active`. |
 | **Default role** | Fallback role when no roles_map entry matches. Leave blank to **deny** unmapped users. |
+| **Role source** | `Identity provider claims` (default) re-derives the role from the claims on every login, so removing a user from a group revokes their role in Omeka. `Omeka` uses **Default role** for new accounts only and never changes an existing account's role. |
 | **Access-guard claim** / **Access-guard value** | **Optional gate** — restricts who can sign in. Both fields must be set together for the gate to activate; leave both blank to disable it. A partially configured pair is rejected. Set them only if you want to limit access to a specific institution, project group, or affiliation. |
 
 **Allowed Omeka role IDs:** `global_admin`, `site_admin`, `editor`, `reviewer`, `author`, `researcher`. Note that `site_admin` is displayed as **"Supervisor"** in the Omeka UI but the internal ID is `site_admin`.
@@ -176,13 +177,33 @@ When Omeka runs behind a TLS-terminating reverse proxy, set **Public base URL** 
 - **Required email:** the IdP must return a non-empty string `email` claim. Login is denied with an actionable error when the claim is missing; the module never fabricates placeholder addresses.
 - **Provisioning:** new user created on first login with a random 32-byte password (never disclosed — the account is OIDC-only).
 - **Existing email addresses:** local accounts are never linked to OIDC identities automatically. If the IdP-provided email belongs to another Omeka user, login is denied until an administrator reconciles the accounts.
-- **Sync on every login:** name, email, and role are re-derived from claims and updated if changed. Manual role overrides in Omeka admin will be **overwritten** on next login.
+- **Sync on every login:** name and email are re-derived from claims and updated if changed. The role is too while **Role source** is `Identity provider claims`, so manual role overrides in Omeka admin will be **overwritten** on next login; set **Role source** to `Omeka` to manage roles in Omeka instead.
 - **Local password protection:**
   - Forgot-password flow blocked for OIDC users on the standard login page.
   - Change-password fieldset hidden and blocked on the user edit page.
 - **Logout:** clears the local session, then redirects to the IdP's `end_session_endpoint` (if advertised) so the user is signed out everywhere.
 
 ---
+
+## Managing roles in Omeka
+
+**Role source** defaults to `Identity provider claims`, which is what makes the module an
+access-revocation mechanism: the role is re-derived from the claims on every login, so
+removing a user from a mapped group in the IdP takes their role away in Omeka too. Leave
+it there whenever the provider exposes group membership.
+
+Set it to `Omeka` when the provider has no group claim to map. Every user would otherwise
+resolve to **Default role** on every login, which silently reverts any role an
+administrator assigns in `Admin -> Users`. With `Omeka`:
+
+- a new account is provisioned with **Default role**, which is therefore required,
+- an existing account keeps whatever role it has; the claims are not consulted,
+- name and email are still synced from the claims on every login.
+
+The trade-off is explicit: **role revocation is no longer driven by the IdP.** Removing a
+user from a group no longer changes their Omeka role, and access is governed by the
+access guard, by the account being deactivated in Omeka, or by the provider refusing to
+authenticate them at all.
 
 ## Routes
 

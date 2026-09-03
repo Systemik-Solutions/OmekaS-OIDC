@@ -23,6 +23,7 @@ class Configurator
         'hide_local_login'    => S::HIDE_LOCAL_LOGIN,
         'redirect'            => S::REDIRECT,
         'claims_display'      => S::CLAIMS_DISPLAY,
+        'role_source'         => S::ROLE_SOURCE,
     ];
 
     private const ALLOWED_ROLES = [
@@ -125,6 +126,16 @@ class Configurator
         $roleDefault = $this->effective($data, S::ROLE_DEFAULT);
         if ($roleDefault !== null && !in_array($roleDefault, self::ALLOWED_ROLES, true)) {
             throw new InvalidConfigurationException('role_default is not a recognised Omeka role.');
+        }
+
+        $roleSource = $this->effective($data, S::ROLE_SOURCE);
+        if (!in_array($roleSource, S::ROLE_SOURCES, true)) {
+            throw new InvalidConfigurationException('role_source must be "claims" or "local".');
+        }
+        // "local" never consults the claims, so the default is the only role a new
+        // account can get and leaving it unset would deny every first login.
+        if ($roleSource === S::ROLE_SOURCE_LOCAL && $roleDefault === null) {
+            throw new InvalidConfigurationException('role_default is required when role_source is "local".');
         }
 
         $guardClaim = $this->effective($data, S::ACCESS_GUARD_CLAIM);

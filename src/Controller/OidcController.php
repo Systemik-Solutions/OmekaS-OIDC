@@ -225,7 +225,10 @@ class OidcController extends AbstractActionController
             );
         }
 
-        $role = $this->resolveRole($claims);
+        $localRoles = S::ROLE_SOURCE_LOCAL === $this->settings->get(S::ROLE_SOURCE, S::DEFAULTS[S::ROLE_SOURCE]);
+        $role = $localRoles
+            ? $this->settings->get(S::ROLE_DEFAULT, S::DEFAULTS[S::ROLE_DEFAULT])
+            : $this->resolveRole($claims);
         if ($role === null) {
             return $this->denied('Your account has no role assigned for this site. Contact the administrator.');
         }
@@ -259,7 +262,7 @@ class OidcController extends AbstractActionController
             if (!$user) {
                 $user = $this->provisionUser($claims, $role, $email);
             } else {
-                $this->syncUser($user, $claims, $role, $email);
+                $this->syncUser($user, $claims, $localRoles ? $user->getRole() : $role, $email);
             }
         } catch (UniqueConstraintViolationException $e) {
             // The preflight check above provides a clear result in the normal
@@ -430,9 +433,10 @@ class OidcController extends AbstractActionController
     }
 
     /**
-     * Update an existing user's name, email, and role from the latest claims.
-     * Only flushes when something actually changed. Callers must reject the
-     * login before this point when the current claims yield no role.
+     * Update an existing user's name and email from the latest claims, and set
+     * the role the caller resolved. Only flushes when something actually
+     * changed. Callers must reject the login before this point when the
+     * current claims yield no role.
      */
     private function syncUser(User $user, array $claims, string $role, string $email): void
     {

@@ -132,6 +132,23 @@ class ConfigForm extends Form
         ]);
 
         $this->add([
+            'name' => S::ROLE_SOURCE,
+            'type' => Element\Select::class,
+            'options' => [
+                'label' => 'Role source', // @translate
+                'info'  => 'Where a user\'s Omeka role comes from. "Identity provider claims" re-derives it on every login, so removing a user from a group revokes their role. "Omeka" uses the default role for new accounts only and never touches an existing account\'s role, for providers that expose no group membership.', // @translate
+                'value_options' => [
+                    S::ROLE_SOURCE_CLAIMS => 'Identity provider claims', // @translate
+                    S::ROLE_SOURCE_LOCAL => 'Omeka', // @translate
+                ],
+                'empty_option' => null,
+            ],
+            'attributes' => [
+                'id' => 'oidc-role-source',
+            ],
+        ]);
+
+        $this->add([
             'name' => S::ACCESS_GUARD_CLAIM,
             'type' => Element\Text::class,
             'options' => [
