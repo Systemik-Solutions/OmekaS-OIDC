@@ -157,6 +157,19 @@ class ConfigForm extends Form
         ]);
 
         $this->add([
+            'name' => S::LOGIN_LABEL,
+            'type' => Element\Text::class,
+            'options' => [
+                'label' => 'Login button label', // @translate
+                'info'  => 'Text of the button injected into the login page and used as the default for the OIDC login link block.', // @translate
+            ],
+            'attributes' => [
+                'id' => 'oidc-login-label',
+                'placeholder' => 'Log in with CILogon',
+            ],
+        ]);
+
+        $this->add([
             'name' => S::HIDE_LOCAL_LOGIN,
             'type' => Element\Checkbox::class,
             'options' => [

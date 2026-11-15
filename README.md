@@ -81,6 +81,7 @@ After install, go to **Admin → Modules → OIDC → Configure**. The settings 
 
 | Field | Description |
 |---|---|
+| **Login button label** | Text of the button injected into the login page, and the default label for the OIDC login link block. Defaults to `Log in with CILogon`. |
 | **Hide local login form** | Hides the username/password fields on the standard login page. The local form is still reachable as a super-admin fallback (the URL works, the fields are CSS-hidden). |
 | **Post-login redirect** | Where to send users after successful login. Use `home`, a site-relative path like `/items`, or an HTTP(S) URL on the same origin. |
 | **Claims to display** | Lines like `<claim-name> = <label>`. Stored on every login as user-settings. Empty label = stored but not shown in the user admin UI. |

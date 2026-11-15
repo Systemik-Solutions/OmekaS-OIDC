@@ -20,11 +20,9 @@ return [
         ],
     ],
     'view_helpers' => [
-        'invokables' => [
-            'oidcLoginLink' => View\Helper\OidcLoginLink::class,
-        ],
         'factories' => [
             'isOidcUser' => Service\ViewHelper\IsOidcUserFactory::class,
+            'oidcLoginLink' => Service\ViewHelper\OidcLoginLinkFactory::class,
         ],
     ],
     'controller_plugins' => [

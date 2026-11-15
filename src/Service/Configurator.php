@@ -23,6 +23,7 @@ class Configurator
         'hide_local_login'    => S::HIDE_LOCAL_LOGIN,
         'redirect'            => S::REDIRECT,
         'claims_display'      => S::CLAIMS_DISPLAY,
+        'login_label'         => S::LOGIN_LABEL,
     ];
 
     private const ALLOWED_ROLES = [
@@ -153,6 +154,11 @@ class Configurator
             throw new InvalidConfigurationException(
                 'redirect must be "home", a root-relative path, or an absolute HTTP(S) URL without user information.'
             );
+        }
+
+        $loginLabel = $this->effective($data, S::LOGIN_LABEL);
+        if (!is_string($loginLabel) || trim($loginLabel) === '') {
+            throw new InvalidConfigurationException('login_label must be a non-empty string.');
         }
 
         $display = $this->effective($data, S::CLAIMS_DISPLAY);

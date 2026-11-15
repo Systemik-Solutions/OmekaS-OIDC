@@ -29,7 +29,7 @@ class OidcLoginLink extends AbstractBlockLayout
             'name' => 'o:block[__blockIndex__][o:data][label]',
             'type' => Element\Text::class,
             'options' => ['label' => 'Button label'], // @translate
-            'attributes' => ['value' => $data['label'] ?? 'Log in with CILogon'],
+            'attributes' => ['value' => $data['label'] ?? $view->plugin('oidcLoginLink')->label()],
         ]);
         $form->add([
             'name' => 'o:block[__blockIndex__][o:data][show_local_link]',
@@ -46,7 +46,7 @@ class OidcLoginLink extends AbstractBlockLayout
     {
         $data = $block->data();
         return $view->oidcLoginLink([
-            'label' => $data['label'] ?? 'Log in with CILogon',
+            'label' => $data['label'] ?? null,
             'showLocalLink' => !empty($data['show_local_link']),
         ]);
     }

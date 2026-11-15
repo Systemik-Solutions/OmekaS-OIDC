@@ -16,6 +16,7 @@ final class Settings
     const HIDE_LOCAL_LOGIN    = 'oidc_hide_local_login';
     const REDIRECT            = 'oidc_redirect';
     const CLAIMS_DISPLAY      = 'oidc_claims_display';
+    const LOGIN_LABEL         = 'oidc_login_label';
 
     const KEYS = [
         self::IDP_DISCOVERY_URL,
@@ -31,6 +32,7 @@ final class Settings
         self::HIDE_LOCAL_LOGIN,
         self::REDIRECT,
         self::CLAIMS_DISPLAY,
+        self::LOGIN_LABEL,
     ];
 
     const DEFAULTS = [
@@ -45,6 +47,7 @@ final class Settings
         self::HIDE_LOCAL_LOGIN   => true,
         self::REDIRECT           => 'home',
         self::CLAIMS_DISPLAY     => [],
+        self::LOGIN_LABEL        => 'Log in with CILogon',
     ];
 
     private function __construct()
